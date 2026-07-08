@@ -1,0 +1,7 @@
+Hoje com o anúncio do modelo Fable 5 liberado novamente resolvi criar uma página de uma marca fictícia de arquitetura e interiores, com uma hero em tela cheia e uma galeria de vídeos de fundo que troca conforme o usuário rola a página.
+
+Curioso pra ver a versão final rodando?
+
+https://arch-production-58ed.up.railway.app/
+
+#frontend #react #webdev #css #ui #desenvolvimentoweb #vite

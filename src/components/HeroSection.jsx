@@ -1,22 +1,54 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./HeroSection.css";
 
 const NAV_LINKS = ["Início", "Sobre", "Projetos", "Galeria"];
 
 const VIDEOS = [
   { src: "/videos/hero.mp4", autoPlay: true, loop: false },
-  { src: "/videos/hero-2.mp4", autoPlay: false, loop: true },
-  { src: "/videos/hero-3.mp4", autoPlay: false, loop: true },
+  { src: "/videos/hero-2.mp4", autoPlay: false, loop: false },
+  { src: "/videos/hero-3.mp4", autoPlay: false, loop: false },
 ];
 
 const TRANSITION_MS = 700;
+const SWIPE_THRESHOLD = 48;
 
 export default function HeroSection() {
   const heroRef = useRef(null);
   const videoRefs = useRef([]);
   const activeIndexRef = useRef(0);
   const lockedRef = useRef(false);
+  const touchStartRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  const navigateTo = useCallback((next) => {
+    const current = activeIndexRef.current;
+    if (next === current || next < 0 || next >= VIDEOS.length) return;
+    if (lockedRef.current) return;
+
+    lockedRef.current = true;
+    activeIndexRef.current = next;
+    setActiveIndex(next);
+
+    videoRefs.current[current]?.pause();
+    const incoming = videoRefs.current[next];
+    if (incoming) {
+      incoming.currentTime = 0;
+      incoming.play();
+    }
+
+    window.setTimeout(() => {
+      lockedRef.current = false;
+    }, TRANSITION_MS);
+  }, []);
+
+  const handleVideoEnded = useCallback(
+    (index) => {
+      if (index !== activeIndexRef.current) return;
+      const next = index + 1 < VIDEOS.length ? index + 1 : 0;
+      navigateTo(next);
+    },
+    [navigateTo],
+  );
 
   useEffect(() => {
     const hero = heroRef.current;
@@ -29,28 +61,49 @@ export default function HeroSection() {
       if (!goingDown && !goingUp) return;
 
       e.preventDefault();
-      if (lockedRef.current) return;
+      navigateTo(goingDown ? current + 1 : current - 1);
+    };
 
-      const next = goingDown ? current + 1 : current - 1;
-      lockedRef.current = true;
-      activeIndexRef.current = next;
-      setActiveIndex(next);
+    const onTouchStart = (e) => {
+      const touch = e.touches[0];
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    };
 
-      videoRefs.current[current]?.pause();
-      const incoming = videoRefs.current[next];
-      if (incoming) {
-        incoming.currentTime = 0;
-        incoming.play();
+    const onTouchEnd = (e) => {
+      const start = touchStartRef.current;
+      if (!start) return;
+      touchStartRef.current = null;
+
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      if (absX < SWIPE_THRESHOLD && absY < SWIPE_THRESHOLD) return;
+
+      const current = activeIndexRef.current;
+      const horizontal = absX > absY;
+
+      if (horizontal) {
+        if (dx < -SWIPE_THRESHOLD) navigateTo(current + 1);
+        else if (dx > SWIPE_THRESHOLD) navigateTo(current - 1);
+      } else {
+        if (dy < -SWIPE_THRESHOLD) navigateTo(current + 1);
+        else if (dy > SWIPE_THRESHOLD) navigateTo(current - 1);
       }
-
-      window.setTimeout(() => {
-        lockedRef.current = false;
-      }, TRANSITION_MS);
     };
 
     hero.addEventListener("wheel", onWheel, { passive: false });
-    return () => hero.removeEventListener("wheel", onWheel);
-  }, []);
+    hero.addEventListener("touchstart", onTouchStart, { passive: true });
+    hero.addEventListener("touchend", onTouchEnd, { passive: true });
+
+    return () => {
+      hero.removeEventListener("wheel", onWheel);
+      hero.removeEventListener("touchstart", onTouchStart);
+      hero.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [navigateTo]);
 
   return (
     <section className="hero" ref={heroRef}>
@@ -71,6 +124,7 @@ export default function HeroSection() {
             muted
             loop={video.loop}
             playsInline
+            onEnded={() => handleVideoEnded(i)}
             style={{ width: `${100 / VIDEOS.length}%` }}
           />
         ))}
